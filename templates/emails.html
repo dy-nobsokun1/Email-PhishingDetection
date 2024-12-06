@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Fetched Emails{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        background-color: #eef2f7;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: #343a40;
+    }
+
+    h1 {
+        color: #222831;
+        margin-bottom: 30px;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 2rem;
+    }
+
+    .email-item {
+        position: relative;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        padding: 20px;
+        transition: box-shadow 0.3s ease, transform 0.3s ease;
+        background-color: #fff;
+        text-decoration: none;
+        overflow: hidden;
+    }
+
+    .email-item:hover {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        transform: translateY(-5px);
+        text-decoration: none;
+    }
+
+    .email-item h5 {
+        color: #222831;
+        font-size: 1.2rem;
+        margin-bottom: 10px;
+    }
+
+    .email-item p {
+        color: #555;
+        font-size: 0.95rem;
+    }
+
+    .email-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .email-date {
+        text-align: right;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    .classification {
+        margin-top: 10px;
+        padding: 10px;
+        color: #fff;
+        font-weight: bold;
+        border-radius: 4px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .classification span {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        z-index: 0;
+        opacity: 0.1;
+    }
+
+    .classification strong {
+        z-index: 1;
+        position: relative;
+    }
+
+    .badge {
+        font-size: 0.8rem;
+        border-radius: 12px;
+        padding: 5px 10px;
+    }
+
+    .badge-info {
+        background-color: #17a2b8;
+    }
+
+    .btn-secondary {
+        background-color: #343a40;
+        border: none;
+        transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: #23272b;
+        transform: translateY(-3px);
+    }
+
+    .btn-info {
+        background-color: #007bff;
+        border: none;
+        transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+
+    .btn-info:hover {
+        background-color: #0056b3;
+        transform: translateY(-3px);
+    }
+
+    #load-more {
+        display: block;
+        margin: 0 auto;
+        padding: 10px 20px;
+        font-size: 1rem;
+        border-radius: 5px;
+    }
+
+    .phishing-probability-bar {
+        width: 5px;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        background-color: #dc3545;
+    }
+
+    /* Color adjustments for different phishing probabilities */
+    .phishing-probability-bar.safe {
+        background-color: #28a745;
+    }
+
+    .phishing-probability-bar.warning {
+        background-color: #ffc107;
+    }
+
+    .phishing-probability-bar.danger {
+        background-color: #dc3545;
+    }
+</style>
+
+<div class="container mt-5">
+    <h1 class="text-center">Detected Emails</h1>
+    <div id="email-list" class="list-group">
+        {% for email in emails %}
+        <a href="/email/{{ email.id }}?username={{ username }}&app_password={{ app_password }}&imap_server={{ imap_server }}" class="list-group-item email-item p-0">
+            <span class="phishing-probability-bar {% if email.phishing_probability <= 40 %}safe{% elif email.phishing_probability <= 60 %}warning{% else %}danger{% endif %}"></span>
+            <div class="row m-3" style="padding-left: 20px;">
+                <div class="col-md-8">
+                    <h5 class="mb-1">{{ email.subject }}</h5>
+                    <p class="mb-1"><strong>From:</strong> {{ email.from }}</p>
+                    <p class="mb-1"><strong>Snippet:</strong> {{ email.snippet }}</p>
+                    <div id="classification-{{ loop.index0 }}" class="classification" style="background-color: {% if email.phishing_probability <= 40 %}#28a745{% elif email.phishing_probability <= 60 %}#ffc107{% else %}#dc3545{% endif %};">
+                        <span style="width: {{email.phishing_probability}}%; background-color: {% if email.phishing_probability <= 40 %}#28a745{% elif email.phishing_probability <= 60 %}#ffc107{% else %}#dc3545{% endif %};"></span>
+                        <strong class="m-2">Phishing Probability:</strong> {{ email.phishing_probability }}%
+                    </div>
+                </div>
+                <div class="col-md-4 email-date">
+                    <p class="mb-1">{{ email.date }}</p>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    <button id="load-more" class="btn btn-info mt-3">Load More Emails</button>
+</div>
+
+<script>
+   document.getElementById('load-more').addEventListener('click', function() {
+    var currentCount = document.querySelectorAll('.email-item').length;
+    var formData = new FormData();
+    formData.append('username', '{{ username }}');
+    formData.append('app_password', '{{ app_password }}');
+    formData.append('imap_server', '{{ imap_server }}');
+    formData.append('start', 10);  // Always start loading from the 11th record
+    formData.append('limit', 10);  // Number of emails to fetch
+
+    fetch('/fetch-emails', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())  // Assuming the server returns JSON
+    .then(data => {
+        var emailItems = document.querySelectorAll('.email-item');
+        var insertionPoint = emailItems[9]; // Reference to the 10th email item
+        data.emails.forEach(email => {
+            var emailHTML = `<a href="/email/${email.id}?username={{ username }}&app_password={{ app_password }}&imap_server={{ imap_server }}" class="list-group-item email-item">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h5 class="mb-1">${email.subject}</h5>
+                                        <p class="mb-1"><strong>From:</strong> ${email.from}</p>
+                                        <p class="mb-1"><strong>Snippet:</strong> ${email.snippet}</p>
+                                    </div>
+                                    <div class="col-md-4 email-date">
+                                        <p class="mb-1">${email.date}</p>
+                                    </div>
+                                </div>
+                             </a>`;
+            insertionPoint.insertAdjacentHTML('afterend', emailHTML);
+            insertionPoint = insertionPoint.nextElementSibling;  // Move the insertion point to the next newly added item
+        });
+    })
+    .catch(error => console.error('Error loading more emails:', error));
+});
+</script>
+{% endblock %}
